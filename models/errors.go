@@ -95,10 +95,10 @@ func (e GNAPError) Is(target error) bool {
 // Unwrap returns the underlying error corresponding to the
 // status code, or [ErrInvalidErrorCode] if status code is
 // invalid.
-func (e GNAPError) Unwrap() []error {
+func (e GNAPError) Unwrap() error {
 	err, ok := errorRegistry[e.Code]
 	if !ok {
 		err = ErrInvalidErrorCode
 	}
-	return []error{err}
+	return err
 }
