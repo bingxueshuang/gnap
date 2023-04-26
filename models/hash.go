@@ -1,10 +1,14 @@
 package models
 
 import (
-	"crypto"
+	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/json"
 	"errors"
-	"hash"
+
+	"golang.org/x/crypto/blake2b"
+	"golang.org/x/crypto/blake2s"
+	"golang.org/x/crypto/sha3"
 )
 
 // HashMethod is a hash name string from IANA Named
@@ -22,20 +26,24 @@ const (
 
 	BLAKE2s_256 HashMethod = "blake2s-256" // [RFC7693]
 	BLAKE2b_256 HashMethod = "blake2b-256" // [RFC7693]
+	BLAKE2b_512 HashMethod = "blake2b-512" // [RFC7693]
 )
 
 // hashFuncRegistry maps HashMethod to corresponding cryptographic
 // hash algorithm. The imports mentioned in the comments need to be
 // included before usage.
-var HashFuncRegistry = map[HashMethod]crypto.Hash{
-	SHA_256:     crypto.SHA256,      // crypto/sha256
-	SHA_384:     crypto.SHA384,      // crypto/sha512
-	SHA_512:     crypto.SHA512,      // crypto/sha512
-	SHA3_224:    crypto.SHA3_224,    // golang.org/x/crypto/sha3
-	SHA3_384:    crypto.SHA3_384,    // golang.org/x/crypto/sha3
-	SHA3_512:    crypto.SHA3_512,    // golang.org/x/crypto/sha3
-	BLAKE2s_256: crypto.BLAKE2s_256, // golang.org/x/crypto/blake2s
-	BLAKE2b_256: crypto.BLAKE2b_256, // golang.org/x/crypto/blake2b
+var hashFuncRegistry = map[HashMethod]func([]byte) []byte{
+	SHA_256: func(data []byte) []byte { x := sha256.Sum256(data); return x[:] },
+	SHA_384: func(data []byte) []byte { x := sha512.Sum384(data); return x[:] },
+	SHA_512: func(data []byte) []byte { x := sha512.Sum512(data); return x[:] },
+
+	SHA3_224: func(data []byte) []byte { x := sha3.Sum224(data); return x[:] },
+	SHA3_384: func(data []byte) []byte { x := sha3.Sum384(data); return x[:] },
+	SHA3_512: func(data []byte) []byte { x := sha3.Sum512(data); return x[:] },
+
+	BLAKE2s_256: func(data []byte) []byte { x := blake2s.Sum256(data); return x[:] },
+	BLAKE2b_256: func(data []byte) []byte { x := blake2b.Sum256(data); return x[:] },
+	BLAKE2b_512: func(data []byte) []byte { x := blake2b.Sum512(data); return x[:] },
 }
 
 // ErrInvalidHashMethod is returned when a hash method that is not
@@ -44,7 +52,7 @@ var ErrInvalidHashMethod = errors.New("invalid hash method")
 
 // MarshalJSON implements [json.Marshaler] interface.
 func (hm HashMethod) MarshalJSON() ([]byte, error) {
-	_, ok := HashFuncRegistry[hm]
+	_, ok := hashFuncRegistry[hm]
 	if !ok {
 		return nil, ErrInvalidHashMethod
 	}
@@ -58,7 +66,7 @@ func (hm *HashMethod) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	_, ok := HashFuncRegistry[HashMethod(hash)]
+	_, ok := hashFuncRegistry[HashMethod(hash)]
 	if !ok {
 		return ErrInvalidHashMethod
 	}
@@ -66,18 +74,17 @@ func (hm *HashMethod) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// HashFunc returns the hash algorithm corresponding to the
-// HashMethod hm. If hash method is empty, then [SHA_256] is
-// returned by default. In case of invalid hash method, nil
-// is returned.
-func (hm HashMethod) HashFunc() hash.Hash {
+// Sum calculates cryptographic hash digest
+// using hm HashMethod. Returns nil if the hash algorithm
+// is not present in the registry.
+func (hm HashMethod) Sum(data []byte) []byte {
 	if hm == "" {
 		// SHA_256 is default
 		hm = SHA_256
 	}
-	hash, ok := HashFuncRegistry[hm]
-	if !ok {
-		return nil
+	hash, ok := hashFuncRegistry[hm]
+	if ok {
+		return hash(data)
 	}
-	return hash.New()
+	return nil
 }
