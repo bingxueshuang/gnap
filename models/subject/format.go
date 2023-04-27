@@ -37,6 +37,7 @@ func Equal(a, b ID) bool {
 }
 
 // EqualNoAlias is a simple equality comparison for [NoAlias].
+// Useful for comparing those in ID.Identifiers.
 func EqualNoAlias(a, b NoAlias) bool {
 	if a.Format != b.Format {
 		return false
@@ -162,10 +163,11 @@ func validateAliases(id ID) bool {
 		}) {
 			return false
 		}
+		visited = append(visited, v)
 		// invalid NoAlias
 		if v.Validate() != nil {
 			return false
 		}
 	}
-	return true
+	return len(id.Identifiers) > 0
 }
