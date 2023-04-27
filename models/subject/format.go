@@ -24,8 +24,20 @@ const (
 	Aliases       Format = "aliases"
 )
 
-// Equal is a simple equality comparison.
-func Equal(a, b NoAlias) bool {
+// Equal is simple equality comparison for [ID].
+func Equal(a, b ID) bool {
+	if a.Format != b.Format {
+		return false
+	}
+	fmt := a.Format
+	if fmt != Aliases {
+		return EqualNoAlias(a.NoAlias(), b.NoAlias())
+	}
+	return slices.EqualFunc(a.Identifiers, b.Identifiers, EqualNoAlias)
+}
+
+// EqualNoAlias is a simple equality comparison for [NoAlias].
+func EqualNoAlias(a, b NoAlias) bool {
 	if a.Format != b.Format {
 		return false
 	}
@@ -144,11 +156,14 @@ func validateURI(id NoAlias) bool {
 func validateAliases(id ID) bool {
 	visited := make([]NoAlias, 0, len(id.Identifiers))
 	for _, v := range id.Identifiers {
-		if slices.ContainsFunc(visited, func(old NoAlias) bool { return Equal(v, old) }) {
+		// exact duplicates
+		if slices.ContainsFunc(visited, func(old NoAlias) bool {
+			return EqualNoAlias(v, old)
+		}) {
 			return false
 		}
-		validator := formatRegistry[id.Format]
-		if validator != nil && !validator(id.NoAlias) {
+		// invalid NoAlias
+		if v.Validate() != nil {
 			return false
 		}
 	}
