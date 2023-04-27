@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/bingxueshuang/gnap/models/subject"
+	"github.com/bingxueshuang/gnap/subject"
 	"golang.org/x/exp/slices"
 )
 
@@ -31,7 +31,7 @@ func ExampleID() {
 	  }`)
 	_ = json.Unmarshal(data, &testid)
 	personal, _ := subject.NewIDEmail("user@example.com")
-	number, _ := subject.NewIDPhoneNumber("+12065550100")
+	number, _ := subject.NewIDPhone("+12065550100")
 	workmail, _ := subject.NewIDEmail("user+word@example.com")
 	newid, _ := subject.NewIDAliases([]subject.NoAlias{
 		personal.NoAlias(),
@@ -368,7 +368,7 @@ func TestNewIDEmail(t *testing.T) {
 	}
 }
 
-func TestNewIDIssuerSubject(t *testing.T) {
+func TestNewIDIssSub(t *testing.T) {
 	tests := []struct {
 		name    string
 		iss     string
@@ -392,9 +392,9 @@ func TestNewIDIssuerSubject(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := subject.NewIDIssuerSubject(tt.iss, tt.sub)
+			got, err := subject.NewIDIssSub(tt.iss, tt.sub)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("NewIDIssuerSubject() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("NewIDIssSub() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if err == nil && got.Issuer != tt.iss || got.Subject != tt.sub {
@@ -403,7 +403,7 @@ func TestNewIDIssuerSubject(t *testing.T) {
 					sub string
 				}
 				t.Errorf(
-					"NewIDIssuerSubject() = %v, want %v",
+					"NewIDIssSub() = %v, want %v",
 					isssub{got.Issuer, got.Subject},
 					isssub{tt.iss, tt.sub},
 				)
@@ -441,7 +441,7 @@ func TestNewIDOpaque(t *testing.T) {
 	}
 }
 
-func TestNewIDPhoneNumber(t *testing.T) {
+func TestNewIDPhone(t *testing.T) {
 	tests := []struct {
 		name    string
 		phone   string
@@ -458,13 +458,13 @@ func TestNewIDPhoneNumber(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := subject.NewIDPhoneNumber(tt.phone)
+			got, err := subject.NewIDPhone(tt.phone)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("NewIDPhoneNumber() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("NewIDPhone() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if err == nil && got.Phone != tt.phone {
-				t.Errorf("NewIDPhoneNumber() = %v, want %v", got.Phone, tt.phone)
+				t.Errorf("NewIDPhone() = %v, want %v", got.Phone, tt.phone)
 			}
 		})
 	}

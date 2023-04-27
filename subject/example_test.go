@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bingxueshuang/gnap/models/subject"
+	"github.com/bingxueshuang/gnap/subject"
 )
 
 type SubInfo struct {

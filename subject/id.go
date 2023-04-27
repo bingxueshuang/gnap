@@ -38,8 +38,8 @@ func NewIDEmail(email string) (ID, error) {
 	return id, nil
 }
 
-// NewIDIssuerSubject creates a new subject identifier of format [IssuerSubject].
-func NewIDIssuerSubject(iss string, sub string) (ID, error) {
+// NewIDIssSub creates a new subject identifier of format [IssuerSubject].
+func NewIDIssSub(iss string, sub string) (ID, error) {
 	id := ID{
 		Format:  IssuerSubject,
 		Issuer:  iss,
@@ -65,8 +65,8 @@ func NewIDOpaque(opaque string) (ID, error) {
 	return id, nil
 }
 
-// NewIDPhoneNumber creates a new subject identifier of format [PhoneNumber].
-func NewIDPhoneNumber(phone string) (ID, error) {
+// NewIDPhone creates a new subject identifier of format [PhoneNumber].
+func NewIDPhone(phone string) (ID, error) {
 	id := ID{
 		Format: PhoneNumber,
 		Phone:  phone,
