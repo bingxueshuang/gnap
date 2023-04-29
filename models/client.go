@@ -212,6 +212,21 @@ type ClientInstance struct {
 	Ref     string
 }
 
+// NewClient is the constructor for client instance by value (object).
+func NewClient(key ClientKey, options ...clientOption) (client ClientInstance, err error) {
+	c := &ClientInstance{Key: key}
+	for _, setter := range options {
+		err = setter(c)
+		if err != nil {
+			return
+		}
+	}
+	return *c, nil
+}
+
+// clientOption is a functional parameter for client constructor.
+type clientOption func(c *ClientInstance) error
+
 // ClientDisplay presents information regarding the client
 // instance for displaying to the user.
 type ClientDisplay struct {
@@ -230,6 +245,8 @@ type ClientKey struct {
 	Ref      string          `json:"-"`
 }
 
+// TODO: constructor for ClientKey to facilitate with std.
+
 // Proofer describes any object that conveys the proofing information.
 type Proofer interface {
 	Proof() ProofMethod
@@ -237,9 +254,9 @@ type Proofer interface {
 
 // HTTPSig represents HTTP signature proofing method.
 type HTTPSig struct {
-	Method           ProofMethod `json:"method"` // == "httpsig"
-	Alg              HTTPSigAlg  `json:"alg"`
-	ContentDigestAlg DigestAlg   `json:"content-digest"`
+	Method    ProofMethod `json:"method"` // == "httpsig"
+	SigAlg    HTTPSigAlg  `json:"alg"`
+	DigestAlg DigestAlg   `json:"content-digest"`
 }
 
 // Proof implements [Proofer] interface.
