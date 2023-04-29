@@ -5,77 +5,117 @@ import (
 	"errors"
 )
 
-// ErrInvalidTokenFlag is returned when a token flag not defined in
-// the registry is encountered.
-var ErrInvalidTokenFlag = errors.New("invalid token flag")
+// ErrInvalidAccessRight is returned when an access right object
+// is found to be malformed.
+var ErrInvalidAccessRight = errors.New("invalid access right")
 
-// TokenFlag represents GNAP access token flags.
-type TokenFlag string
+// ErrInvalidTokenRequest is returned when a token request is
+// found to be malformed.
+var ErrInvalidTokenRequest = errors.New("invalid token request")
 
-// Registry of access token flags.
-const (
-	FlagBearer  TokenFlag = "bearer"
-	FlagDurable TokenFlag = "durable"
-)
+// ErrInvalidTokenResponse is returned when a token response
+// is found to be malformed.
+var ErrInvalidTokenResponse = errors.New("invalid token response")
 
-// flagRegistry is a quick mapping from allowed values to token flags.
-var flagRegistry = map[string]TokenFlag{
-	"bearer":  FlagBearer,
-	"durable": FlagDurable,
+// AccessRight represents the rights and privileges requested
+// or granted during a gnap request flow.
+type AccessRight struct {
+	Type       string   `json:"type"`
+	Actions    []string `json:"actions,omitempty"`
+	Locations  []string `json:"locations,omitempty"`
+	Datatypes  []string `json:"datatypes,omitempty"`
+	Identifier string   `json:"identifier,omitempty"`
+	Privileges []string `json:"privileges,omitempty"`
+	Ref        string   `json:"-"`
 }
 
 // MarshalJSON implements the [json.Marshaler] interface.
-func (tf TokenFlag) MarshalJSON() ([]byte, error) {
-	_, ok := flagRegistry[string(tf)]
-	if ok {
-		return json.Marshal(string(tf))
+func (r AccessRight) MarshalJSON() ([]byte, error) {
+	if r.Ref != "" {
+		return json.Marshal(r.Ref)
 	}
-	return nil, ErrInvalidTokenFlag
+	type Alias AccessRight
+	return json.Marshal(Alias(r))
 }
 
 // UnmarshalJSON implements the [json.Unmarshaler] interface.
-func (tf *TokenFlag) UnmarshalJSON(data []byte) error {
-	var flag string
-	err := json.Unmarshal(data, &flag)
-	if err == nil {
-		*tf = TokenFlag(flag)
+func (r *AccessRight) UnmarshalJSON(data []byte) error {
+	var ref string
+	err := json.Unmarshal(data, &ref)
+	if err == nil { // by reference
+		*r = AccessRight{Ref: ref}
 		return nil
 	}
-	return ErrInvalidTokenFlag
+	type Alias AccessRight
+	var alias Alias
+	err = json.Unmarshal(data, &alias)
+	if err == nil {
+		*r = AccessRight(alias)
+		return nil
+	}
+	return ErrInvalidAccessRight
 }
 
-// TokenRequest represents access token request object for requesting
-// access to resources.
-type TokenRequest struct {
-	Access []AccessRight `json:"access"`
-	Label  string        `json:"label,omitempty"`
-	Flags  []TokenFlag   `json:"flags,omitempty"`
+// ATRequest is a wrapper aroung TokenRequest for
+// managing single and multiple access token requests.
+type ATRequest struct {
+	Single   TokenRequest
+	Multiple []TokenRequest
 }
 
-// TokenResponse represents access token grant response by the AS.
-type TokenResponse struct {
-	URI         URL         `json:"uri"`
-	Wait        int         `json:"wait"`
-	AccessToken AccessToken `json:"access_token"`
+// ATResponse is a wrapper around TokenResponse for
+// managing single and multiple access token responses.
+type ATResponse struct {
+	Single   TokenResponse
+	Multiple []TokenResponse
 }
 
-// AccessToken represents the access token granted by the AS.
-type AccessToken struct {
-	Value     string        `json:"value"`
-	Label     string        `json:"label,omitempty"`
-	Manage    URL           `json:"manage,omitempty"`
-	Access    []AccessRight `json:"access"`
-	ExpiresIn int           `json:"expires_in,omitempty"`
-	Key       ClientKey     `json:"key,omitempty"`
-	Flags     []TokenFlag   `json:"flags,omitempty"`
+// MarshalJSON implements the [json.Marshaler] interface.
+func (req ATRequest) MarshalJSON() ([]byte, error) {
+	if req.Multiple == nil {
+		return json.Marshal(req.Single)
+	}
+	return json.Marshal(req.Multiple)
 }
 
-// ContinueToken represents continuation access token to
-// be presented for continuation request.
-type ContinueToken struct {
-	Value     string      `json:"value"`
-	Label     string      `json:"label,omitempty"`
-	Manage    URL         `json:"manage,omitempty"`
-	ExpiresIn int         `json:"expires_in,omitempty"`
-	Flags     []TokenFlag `json:"flags,omitempty"`
+// MarshalJSON implements the [json.Marshaler] interface.
+func (req ATResponse) MarshalJSON() ([]byte, error) {
+	if req.Multiple == nil {
+		return json.Marshal(req.Single)
+	}
+	return json.Marshal(req.Multiple)
+}
+
+// UnmarshalJSON implements [json.UnmarshalJSON] interface.
+func (req *ATRequest) UnmarshalJSON(data []byte) error {
+	var one TokenRequest
+	err := json.Unmarshal(data, &one)
+	if err == nil { // valid single access token request
+		req.Single = one
+		return nil
+	}
+	var many []TokenRequest
+	err = json.Unmarshal(data, &many)
+	if err == nil { // valid multiple access token request
+		req.Multiple = many
+		return nil
+	}
+	return ErrInvalidTokenRequest
+}
+
+// UnmarshalJSON implements [json.Unmarshaler] interface.
+func (req *ATResponse) UnmarshalJSON(data []byte) error {
+	var one TokenResponse
+	err := json.Unmarshal(data, &one)
+	if err == nil { // valid single access token response
+		req.Single = one
+		return nil
+	}
+	var many []TokenResponse
+	err = json.Unmarshal(data, &many)
+	if err == nil { // valid multiple access token response
+		req.Multiple = many
+		return nil
+	}
+	return ErrInvalidTokenResponse
 }
