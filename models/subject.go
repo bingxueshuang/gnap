@@ -72,7 +72,7 @@ type SubResponse struct {
 type EndUser struct {
 	SubIDs     []subject.ID `json:"sub_ids,omitempty"`
 	Assertions []Assertion  `json:"assertions,omitempty"`
-	Ref        string
+	Ref        string       `json:"-"`
 }
 
 // MarshalJSON implements the [json.Marshaler] interface.

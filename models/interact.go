@@ -193,7 +193,7 @@ type IAFinish struct {
 // IAHints provides additional information to inform the
 // interaction process at the AS.
 type IAHints struct {
-	UILocales []string `json:"uilocales,omitempty"`
+	UILocales []string `json:"ui_locales,omitempty"`
 }
 
 // IACodeURI represents a User Code or URI object that indicates
