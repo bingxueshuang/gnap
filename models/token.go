@@ -52,15 +52,8 @@ type TokenRequest struct {
 	Flags  []TokenFlag   `json:"flags,omitempty"`
 }
 
-// TokenResponse represents access token grant response by the AS.
+// TokenResponse represents the access token granted by the AS.
 type TokenResponse struct {
-	URI         URL         `json:"uri"`
-	Wait        int         `json:"wait"`
-	AccessToken AccessToken `json:"access_token"`
-}
-
-// AccessToken represents the access token granted by the AS.
-type AccessToken struct {
 	Value     string        `json:"value"`
 	Label     string        `json:"label,omitempty"`
 	Manage    URL           `json:"manage,omitempty"`
