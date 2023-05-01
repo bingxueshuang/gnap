@@ -8,6 +8,5 @@
 //	NewID(format)?
 //
 // where `format` is a subject id format. For more complicated usages, you can directly
-// use [ID] as struct literal. For including list of identifiers in aliases format,
-// ID.NoAlias helper function can be used. See the example of [ID] type for more details.
+// use [ID] as struct literal. Subject identifiers for aliases format are not supported.
 package subject // import "github.com/bingxueshuang/gnap/subject"

@@ -3,6 +3,7 @@
 Subject Identifiers for Security Event Tokens, implementing [draft-ietf-secevent-subject-identifiers](https://datatracker.ietf.org/doc/html/draft-ietf-secevent-subject-identifiers-16).
 
 This is a nearly feature-complete implementation of draft-16, including the given examples as unit tests.
+Aliases format is not implemented.
 
 The code follows draft-16, which may be the Editor's copy rather than the published draft.
 
@@ -24,17 +25,17 @@ func main() {
     // handle errors appropriately.
     isssub, _ := subject.NewIDIssSub("https://identity,example.org", "FNJ45HJ6")
     emailid, _ := subject.NewIDEmail("editor@example.org")
-    userinfo, _ := subject.NewAliases([]subject.NoAlias{
-        isssub.NoAlias(),
-        emailid.NoAlias(),
-    })
+    custom := subject.ID{
+        Format: subject.Opaque,
+        Opaque: "nefwl45",
+    }
+    _ = custom.Validate()
 }
 ```
 
-For more complicated use cases, directly use the ID type
-or the NoAlias type.
+For more complicated use cases, directly use the ID type struct literal.
 
-Validator method is given so as to allow a means to check if the subject id fields are valid or not.
+Validator method is provided so as to allow a means to check if the subject id fields are valid or not.
 
 ## Links
 
