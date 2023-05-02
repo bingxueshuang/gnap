@@ -1,204 +1,139 @@
 package models
 
-import (
-	"encoding/json"
-	"errors"
-	"net/url"
-)
-
-// ErrInvalidStartMode is returned when a start mode
-// not defined in the registry is encountered.
-var ErrInvalidStartMode = errors.New("invalid start mode")
-
-// ErrInvalidFinishMethod is returned when a finish method
-// not defined in the registry is encountered.
-var ErrInvalidFinishMethod = errors.New("invalid finish method")
-
-// StartMode indicates how the client instance can start an interaction.
-type StartMode string
+// StartMode is enum that defines the means of how the client
+// allows the RS to communicate with the AS. Each interaction
+// start modes has a unique identifying name.
+type StartMode struct {
+	name string `json:"-"`
+}
 
 // Contents of Interaction Start Modes Registry.
-const (
-	ModeRedirect StartMode = "redirect"
-	ModeApp      StartMode = "app"
-	ModeCode     StartMode = "user_code"
-	ModeCodeURI  StartMode = "user_code_uri"
+var (
+	SMRedirect = StartMode{"redirect"}
+	SMApp      = StartMode{"app"}
+	SMCode     = StartMode{"user_code"}
+	SMCodeURI  = StartMode{"user_code_uri"}
 )
 
-// startModesRegistry is a quick mapping of registry values
-// to verify that a string is valid start mode.
-var startModesRegistry = map[string]StartMode{
-	"redirect":      ModeRedirect,
-	"app":           ModeApp,
-	"user_code":     ModeCode,
-	"user_code_uri": ModeCodeURI,
+// FinishMethod is enum that defines the means of how the
+// client gets notified when the interaction is completed.
+type FinishMethod struct {
+	name string `json:"-"`
 }
 
-// MarshalJSON implements [json.Marshaler] interface.
-func (sm StartMode) MarshalJSON() ([]byte, error) {
-	_, ok := startModesRegistry[string(sm)]
-	if !ok {
-		return nil, ErrInvalidStartMode
-	}
-	return json.Marshal(string(sm))
-}
-
-// UnmarshalJSON implements the [json.Unmarshaler] interface.
-func (sm *StartMode) UnmarshalJSON(data []byte) error {
-	var mode string
-	err := json.Unmarshal(data, &mode)
-	if err != nil {
-		return err
-	}
-	_, ok := startModesRegistry[mode]
-	if !ok {
-		return ErrInvalidStartMode
-	}
-	*sm = StartMode(mode)
-	return nil
-}
-
-// FinishMethod indicates how the client instance can
-// receive an indication that interaction has finished
-// at the AS.
-type FinishMethod string
-
-// Contents of Interaction Finish Methods Registry.
-const (
-	MethodPush     FinishMethod = "push"
-	MethodRedirect FinishMethod = "redirect"
+// Contents of the Interaction Finish Methods Registry.
+var (
+	FMRedirect = FinishMethod{"redirect"}
+	FMPush     = FinishMethod{"push"}
 )
 
-// finishMethodRegistry is a quick mapping to
-// check if a string is a valid FinishMethod.
-var finishMethodsRegistry = map[string]FinishMethod{
-	"push":     MethodPush,
-	"redirect": MethodRedirect,
+// IAReq defines the object format for "interact" field of [Request].
+// client instance declares the parameters for interaction methods that it
+// can support using the interact field. It declares how the client can
+// initiate and complete the request, as well as provide hints to the AS
+// about user preferences such as locale.
+type IAReq struct {
+	// how the client instance can start an interaction.
+	Start IAStart `json:"start"` // REQUIRED
+	// how the client instance can receive an indication
+	// that interaction has finished at the AS.
+	Finish IAFinish `json:"finish,omitempty"` // OPTIONAL
+	// additional info to inform the interaction process at the AS.
+	Hints IAHints `json:"hints,omitempty"` // OPTIONAL
 }
 
-// MarshalJSON implements [json.Marshaler] interface.
-func (fm FinishMethod) MarshalJSON() ([]byte, error) {
-	_, ok := finishMethodsRegistry[string(fm)]
-	if !ok {
-		return nil, ErrInvalidFinishMethod
-	}
-	return json.Marshal(string(fm))
-}
-
-// UnmarshalJSON implements [json.Unmarshaler] interface.
-func (fm *FinishMethod) UnmarshalJSON(data []byte) error {
-	var method string
-	err := json.Unmarshal(data, &method)
-	if err != nil {
-		return err
-	}
-	_, ok := finishMethodsRegistry[method]
-	if !ok {
-		return ErrInvalidFinishMethod
-	}
-	*fm = FinishMethod(method)
-	return nil
-}
-
-// IARequest describes the modes that the client instance supports
-// for allowing the RO to interact with the AS and modes for the
-// client instance to receive updates when interaction is complete.
-type IARequest struct {
-	Start  []IAStart `json:"start"`
-	Finish *IAFinish `json:"finish,omitempty"`
-	Hints  *IAHints  `json:"hints,omitempty"`
-}
-
-// IAResponse indicates that interaction through some set of
-// defined mechanisms needs to take place.
+// IAResponse is included in "interact" field of [Response] if interaction is
+// both supported and necessary. All supported interaction methods are included
+// in the same interact object.
 type IAResponse struct {
-	Redirect  *URL       `json:"redirect,omitempty"`
-	App       *URL       `json:"app,omitempty"`
-	UserCode  string     `json:"user_code,omitempty"`
-	CodeURI   *IACodeURI `json:"user_code_uri,omitempty"`
-	Finish    string     `json:"finish,omitempty"`
-	ExpiresIn int        `json:"expires_in,omitempty"`
+	// redirect to an arbitrary URI.
+	// REQUIRED if the redirect start mode is possible for this request.
+	Redirect URL `json:"redirect,omitempty"`
+	// launch of an application URI.
+	// REQUIRED if the app start mode is possible for this request.
+	App URL `json:"app,omitempty"`
+	// display a short user code.
+	// REQUIRED if the user_code start mode is possible for this request.
+	Code string `json:"code,omitempty"`
+	// display a short user code and URI.
+	// REQUIRED if the user_code_uri start mode is possible for this request.
+	CodeURI CodeURI `json:"codeuri,omitempty"`
+	// unique ASCII string value provided by the AS as a nonce.
+	// REQUIRED if the interaction finish method requested by the client instance
+	// is possible for this request.
+	Finish string `json:"finish,omitempty"`
+	// number of seconds after which this set of interaction responses will
+	// expire and no longer be usable by the client instance.
+	// If omitted, the interaction modes returned do not expire but MAY be
+	// invalidated by the AS at any time.
+	ExpiresIn int `json:"expires_in,omitempty"` // OPTIONAL
 }
 
-// IACallback represents the information conveyed to the
-// client through the interaction callback.
+// IACallback defines the object format used by the AS to signal to the
+// client instance that interaction is complete and the request can be continued
+// at the client instance's callback URI.
 type IACallback struct {
-	Hash        string `json:"hash"`
-	InteractRef string `json:"interact_ref"`
+	// interaction hash value
+	Hash string `json:"hash"` // REQUIRED
+	// interaction reference generated for this interaction.
+	IARef string `json:"interact_ref"` // REQUIRED
 }
 
-// Encode creates query parameters from the
-// IACallback object.
-func (c IACallback) Encode() url.Values {
-	v := url.Values{}
-	v.Set("hash", c.Hash)
-	v.Set("interact_ref", c.InteractRef)
-	return v
-}
-
-// FromQuery constructs a new IACallback from the
-// given query string parameters.
-func FromQuery(params url.Values) IACallback {
-	return IACallback{
-		Hash:        params.Get("hash"),
-		InteractRef: params.Get("interact_ref"),
-	}
-}
-
-// IAStart indicates how the client instance can start an interaction.
+// IAStart defines the means of initiation of interaction by the client,
+// if the client instance is capable of starting interaction with the end user.
 type IAStart struct {
-	Mode  StartMode `json:"mode"`
-	IsRef bool      `json:"-"`
+	// interaction start mode.
+	Mode StartMode `json:"mode"`
+	// a boolean field indicating whether the start mode is represented
+	// by reference as an opaque string.
+	IsRef bool `json:"-"`
 }
 
-// MarshalJSON implements the [json.Marshaler] interface. Encodes to
-// json string or json object with mode property.
-func (ias IAStart) MarshalJSON() ([]byte, error) {
-	if ias.IsRef {
-		return json.Marshal(ias.Mode)
-	}
-	type Alias IAStart
-	alias := Alias(ias)
-	return json.Marshal(alias)
-}
-
-// UnmarshalJSON implements [json.Unmarshaler] interface. Decodes
-// from a start mode string or a start mode object.
-func (ias *IAStart) UnmarshalJSON(data []byte) error {
-	var mode StartMode
-	err := json.Unmarshal(data, &mode)
-	if err == nil { // start mode by reference
-		*ias = IAStart{mode, true}
-		return nil
-	}
-	type Alias IAStart
-	var alias Alias
-	err = json.Unmarshal(data, &alias)
-	if err != nil {
-		return err
-	}
-	*ias = IAStart(alias)
-	return nil
-}
-
-// IAFinish indicates how the client instance can receive an
-// indication that interaction has finished at the AS.
+// IAFinish represents the the object under the "finish" key in [IAReq].
+// It is sent to the AS if the client is capable of receiving a message from
+// the AS indicating that the RO has completed the interaction.
 type IAFinish struct {
-	Method     FinishMethod `json:"method"`
-	URI        *URL         `json:"uri"`
-	Nonce      string       `json:"nonce"`
-	HashMethod HashMethod   `json:"hash_method,omitempty"`
+	// callback method that the AS will use to contact the client instance.
+	Method FinishMethod `json:"method"` // REQUIRED
+	// the URI that the AS will either send the RO to after interaction
+	// or send an HTTP POST request. This URI MUST be an absolute URI,
+	// and MUST NOT contain any fragment component.
+	// REQUIRED for redirect and push methods.
+	URI URL `json:"uri,omitempty"`
+	// unique ASCII string value to be used in the calculation of the
+	// "hash" query parameter sent to the callback URI, must be sufficiently
+	// random to be unguessable by an attacker. MUST be generated by the
+	// client instance as a unique value for this request.
+	Nonce string `json:"nonce"` // REQUIRED
+	// An identifier of a hash calculation mechanism to be used for the
+	// callback hash. If absent, the default value is sha-256.
+	Hash HashMethod `json:"hash,omitempty"` // OPTIONAL
 }
 
-// IAHints provides additional information to inform the
-// interaction process at the AS.
+// IAHints is an object describing one or more suggestions from the client
+// instance that the AS can use to help drive user interaction.
 type IAHints struct {
-	UILocales []string `json:"ui_locales,omitempty"`
+	// end user's preferred locales that the AS can use during interaction,
+	// particularly before the RO has authenticated.
+	UILocales []string `json:"ui_locales,omitempty"` // OPTIONAL
 }
 
-// IACodeURI represents a User Code or URI object that indicates
-// a short user-typable code and a short URI.
-type IACodeURI struct {
-	Code string `json:"code"`
-	URI  URL    `json:"uri"`
+// CodeURI represents the "user_code_uri" field of the [IAResponse] object.
+// AS responds with this field if the client instance indicates that it can
+// display a short user-typeable code and AS supports this mode.
+type CodeURI struct {
+	// unique short code that the end user can type into a provided URI.
+	// To facilitate usability, this string MUST be case-insensitive,
+	// MUST consist of only easily typeable characters (such as letters or numbers).
+	// The string MUST be randomly generated so as to be unguessable by an attacker
+	// within the time it is accepted. The time in which this code will be accepted
+	// SHOULD be short lived, such as several minutes. It is RECOMMENDED that this
+	// code be no more than eight characters in length.
+	Code string `json:"code"` // REQUIRED
+	// interaction URI that the client instance will direct the RO to.
+	// This URI MUST be short enough to be communicated to the end user by
+	// the client instance. It is RECOMMENDED that this URI be short enough for
+	// an end user to type in manually. The URI MUST NOT contain the code value.
+	// This URI MUST be an absolute URI.
+	URI URL `json:"uri"` // REQUIRED
 }

@@ -1,173 +1,80 @@
 package models
 
-import (
-	"encoding/json"
-	"errors"
+// TokenFlag is a typed enum for access token flags.
+// Flags define attributes or behavior associated with the access token.
+type TokenFlag struct {
+	name string `json:"-"`
+}
 
-	"golang.org/x/exp/slices"
+// Contents of Access Token Flags Registry.
+var (
+	TFBearer  = TokenFlag{"bearer"}  // Bearer Access Token (default: bound access token)
+	TFDurable = TokenFlag{"durable"} // Access Token durable even after rotation
 )
 
-// ErrInvalidTokenFlag is returned when a token flag not defined in
-// the registry is encountered.
-var ErrInvalidTokenFlag = errors.New("invalid token flag")
-
-// TokenFlag represents GNAP access token flags.
-type TokenFlag string
-
-// Registry of access token flags.
-const (
-	FlagBearer  TokenFlag = "bearer"
-	FlagDurable TokenFlag = "durable"
-)
-
-// flagRegistry is a quick mapping from allowed values to token flags.
-var flagRegistry = map[string]TokenFlag{
-	"bearer":  FlagBearer,
-	"durable": FlagDurable,
+// TokenReq is an object used for describing the requested access rights
+// and attributes associated with the access token.
+type TokenReq struct {
+	// access rights that the client instance is requesting for the access tokens
+	// to be used at the RS.
+	Access []ARight `json:"access"` // REQUIRED
+	// unique name chosen by the client instance to refer to the resulting access token.
+	// The value of this field is opaque to the AS. If this field is included in the
+	// request, the AS MUST include the same label in the token response.
+	// REQUIRED if used as part of a multiple access token request.
+	// OPTIONAL otherwise.
+	Label string `json:"label,omitempty"`
+	// set of flags that indicate desired attributes or behavior to be attached
+	// to the access token by the AS.
+	Flags []TokenFlag `json:"flags,omitempty"` // OPTIONAL
 }
 
-// MarshalJSON implements the [json.Marshaler] interface.
-func (tf TokenFlag) MarshalJSON() ([]byte, error) {
-	_, ok := flagRegistry[string(tf)]
-	if ok {
-		return json.Marshal(string(tf))
-	}
-	return nil, ErrInvalidTokenFlag
-}
-
-// UnmarshalJSON implements the [json.Unmarshaler] interface.
-func (tf *TokenFlag) UnmarshalJSON(data []byte) error {
-	var flag string
-	err := json.Unmarshal(data, &flag)
-	if err == nil {
-		*tf = TokenFlag(flag)
-		return nil
-	}
-	return ErrInvalidTokenFlag
-}
-
-// TokenRequest represents access token request object for requesting
-// access to resources.
-type TokenRequest struct {
-	Access []AccessRight `json:"access"`
-	Label  string        `json:"label,omitempty"`
-	Flags  []TokenFlag   `json:"flags,omitempty"`
-}
-
-// NewTokenRequest is a constructor for TokenRequest.
-func NewTokenRequest(rights []AccessRight, options ...tokenRequestOption) (req TokenRequest, err error) {
-	tr := &TokenRequest{Access: rights}
-	for _, setter := range options {
-		err = setter(tr)
-		if err != nil {
-			return
-		}
-	}
-	return *tr, nil
-}
-
-// tokenRequestOption is functional parameter for TokenResponse constructor.
-type tokenRequestOption func(*TokenRequest) error
-
-// TokenResponse represents the access token granted by the AS.
+// TokenResponse is an object representing the access token grant by the AS.
+// It describes the token attributes and token management info.
 type TokenResponse struct {
-	Value     string        `json:"value"`
-	Label     string        `json:"label,omitempty"`
-	Manage    URL           `json:"manage,omitempty"`
-	Access    []AccessRight `json:"access"`
-	ExpiresIn int           `json:"expires_in,omitempty"`
-	Key       ClientKey     `json:"key,omitempty"`
-	Flags     []TokenFlag   `json:"flags,omitempty"`
+	// value of the access token as a string. The value MUST be limited to the
+	// `token68` character set defined in [RFC9110] to facilitate transmission over
+	// HTTP headers and within other protocols without requiring additional encoding.
+	//
+	// [RFC9110]: https://www.rfc-editor.org/rfc/rfc9110
+	Value string `json:"value"` // REQUIRED
+	// value of the label the client instance provided in the associated
+	// token request, if present.
+	// REQUIRED for multiple access tokens or if a label was included in the single
+	// access token request.
+	// OPTIONAL for a single access token where no label was included in the request.
+	Label string `json:"label,omitempty"`
+	// management URI for this access token. This URI MUST be an absolute URI.
+	Manage URL `json:"manage,omitempty"` // OPTIONAL
+	// description of the rights associated with this access token.
+	// If included, this MUST reflect the rights associated with the issued access
+	// token. These rights MAY vary from what was requested by the client instance.
+	Access []ARight `json:"access"` // REQUIRED
+	// number of seconds in which the access will expire.
+	// The client instance MUST NOT use the access token past this time.
+	ExpiresIn int `json:"expires_in,omitempty"` // OPTIONAL
+	// key that the token is bound to, if different from the client instance's
+	// presented key. The client instance MUST be able to dereference or process the key
+	// information in order to be able to sign subsequent requests using the access token.
+	// It is RECOMMENDED that keys returned for use with access tokens be key references
+	// that the client instance can correlate to its known keys. OPTIONAL.
+	Key Key `json:"key,omitempty"` // REQUIRED
+	// set of flags that represent attributes or behaviors of the access token
+	// issued by the AS.
+	Flags []TokenFlag `json:"flags,omitempty"` // OPTIONAL
 }
 
-// NewTokenResponse is constructor for TokenResponse.
-func NewTokenResponse(value string, access []AccessRight, options ...tokenResponseOption) (res TokenResponse, err error) {
-	tr := &TokenResponse{Value: value, Access: access}
-	for _, setter := range options {
-		err = setter(tr)
-		if err != nil {
-			return
-		}
-	}
-	return *tr, nil
-}
-
-// tokenResponseOption is functional parameter for TokenResponse constructor.
-type tokenResponseOption func(*TokenResponse) error
-
-// ContinueToken represents continuation access token to
-// be presented for continuation request.
-type ContinueToken struct {
-	Value     string      `json:"value"`
-	Label     string      `json:"label,omitempty"`
-	Manage    URL         `json:"manage,omitempty"`
-	ExpiresIn int         `json:"expires_in,omitempty"`
-	Flags     []TokenFlag `json:"flags,omitempty"`
-}
-
-// WithLabel is optional parameter for [NewTokenRequest]
-// to request a label for the token.
-func WithLabel(label string) tokenRequestOption {
-	return func(req *TokenRequest) error {
-		req.Label = label
-		return nil
-	}
-}
-
-// WithFlag is optional parameter for [NewTokenRequest]
-// to mention the flags associated with the token.
-func WithFlag(flag TokenFlag) tokenRequestOption {
-	return func(req *TokenRequest) error {
-		flags := req.Flags
-		if slices.Contains(flags, flag) { // avoid duplicates
-			return nil
-		}
-		req.Flags = append(flags, flag)
-		return nil
-	}
-}
-
-// WithLabelResponse is optional parameter for [NewTokenResponse]
-// to provide the label with the access token.
-func WithLabelResponse(label string) tokenResponseOption {
-	return func(res *TokenResponse) error {
-		res.Label = label
-		return nil
-	}
-}
-
-// WithManage is optional parameter for [NewTokenResponse]
-// to provide the token management URI.
-func WithManage(manage URL) tokenResponseOption {
-	return func(res *TokenResponse) error {
-		res.Manage = manage
-		return nil
-	}
-}
-
-// WithExpiry is optional parameter for [NewTokenResponse]
-// to provide expiry duration for the access token.
-func WithExpiry(seconds int) tokenResponseOption {
-	return func(res *TokenResponse) error {
-		res.ExpiresIn = seconds
-		return nil
-	}
-}
-
-// WithKey is optional parameter for [NewTokenResponse]
-// to provide the key to be presented with the access token.
-func WithKey(key ClientKey) tokenResponseOption {
-	return func(res *TokenResponse) error {
-		res.Key = key
-		return nil
-	}
-}
-
-// WithFlags is optional parameter for [NewTokenResponse]
-// to mention the flags associated with the access token.
-func WithFlags(flags []TokenFlag) tokenResponseOption {
-	return func(res *TokenResponse) error {
-		res.Flags = flags
-		return nil
-	}
+// ContToken defines unique access token for continuing the request,
+// called the "continuation access token".
+type ContToken struct {
+	// value of the access token as a string. Similar to [TokenResponse.Value].
+	Value string `json:"value"` // REQUIRED
+	// management URI for the continuation token. MUST be absolute URI.
+	Manage URL `json:"manage,omitempty"` // OPTIONAL
+	// number of seconds in which the continuation token will expire.
+	// The client instance MUST NOT use the token past this time.
+	ExpiresIn int `json:"expires_in,omitempty"` // OPTIONAL
+	// set of flags that represent attributes or behaviors of the
+	// continuation token. MUST NOT contain the flag "bearer".
+	Flags []TokenFlag `json:"flags,omitempty"` // OPTIONAL
 }

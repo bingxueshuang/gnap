@@ -1,109 +1,63 @@
 package models
 
 import (
-	"encoding/json"
-	"errors"
 	"time"
 
 	"github.com/bingxueshuang/gnap/subject"
 )
 
-// ErrInvalidAFormat is returned when an assertion format not defined
-// in the registry is encountered.
-var ErrInvalidAFormat = errors.New("invalid assertion format")
+// AFormat is type-safe enum for gnap assertion formats.
+// It defines a means to pass identity assertions between the
+// AS and the client instance.
+type AFormat struct {
+	name string `json:"-"`
+}
 
-// AssertionFormat is a valid assertion format as defined in the draft.
-type AssertionFormat string
-
-// Registry of valid assertion formats.
-const (
-	AFidToken AssertionFormat = "id_token"
-	AFsaml2   AssertionFormat = "saml2"
+// Contents of the Assertion Formats Registry.
+var (
+	AFidToken = AFormat{"id_token"}
+	AFsaml2   = AFormat{"saml2"}
 )
 
-// assertionFormatsRegistry provides quick lookup for valid or invalid check.
-var assertionFormatsRegistry = map[string]AssertionFormat{
-	"id_token": AFidToken,
-	"saml2":    AFsaml2,
+// SubReq defines the subject field of [Request] as a JSON object if the
+// client instance is requesting information about the RO from AS.
+type SubReq struct {
+	// array of subject identifier subject formats requested for the RO.
+	// REQUIRED if subject identifiers are requested.
+	SFormats []subject.Format `json:"sub_id_formats,omitempty"`
+	// array of requested assertion formats.
+	// REQUIRED if assertions are requested.
+	AFormats []AFormat `json:"assertion_formats,omitempty"`
+	// array of subject identifiers representing the subject that info is being
+	// requested for. All identifiers in the array MUST identify the same subject.
+	SubIDs []subject.ID `json:"sub_ids,omitempty"` // OPTIONAL
+	// a boolean field to differentiate between zero value and set value.
+	// MUST be set to true if SubReq is not zero value.
+	NonZero bool `json:"-"`
 }
 
-// MarshalJSON implements [json.Marshaler] interface.
-func (af AssertionFormat) MarshalJSON() ([]byte, error) {
-	_, ok := assertionFormatsRegistry[string(af)]
-	if !ok {
-		return nil, ErrInvalidAFormat
-	}
-	return json.Marshal(string(af))
-}
-
-// UnmarshalJSON implements [json.Unmarshaler] interface.
-func (af *AssertionFormat) UnmarshalJSON(data []byte) error {
-	var format string
-	err := json.Unmarshal(data, &format)
-	if err != nil {
-		return err
-	}
-	_, ok := assertionFormatsRegistry[format]
-	if ok {
-		*af = AssertionFormat(format)
-		return nil
-	}
-	return ErrInvalidAFormat
-}
-
-// SubRequest describes the information about the RO that the client instance
-// is requesting to be returned directly in the response from the AS.
-type SubRequest struct {
-	SFormats []subject.Format  `json:"sub_id_formats,omitempty"`
-	AFormats []AssertionFormat `json:"assertion_formats,omitempty"`
-	SubIDs   []subject.ID      `json:"sub_ids,omitempty"`
-}
-
-// SubResponse contains claims about the RO as known and declared by the AS.
+// SubResponse represents the "subject" field of [Response] object. It is returned
+// by the AS if info about the RO is requested and the AS grants the client instance
+// access to that data.
 type SubResponse struct {
-	SubIDs     []subject.ID `json:"sub_ids,omitempty"`
-	Assertions []Assertion  `json:"assertions,omitempty"`
-	UpdatedAt  time.Time    `json:"updated_at,omitempty"`
+	// array of subject identifiers for the RO.
+	// REQUIRED if returning subject identifiers.
+	SubIDs []subject.ID `json:"sub_ids,omitempty"`
+	// array containing identity assertions as [Assertion] objects.
+	// REQUIRED if returning assertions.
+	Assertions []Assertion `json:"assertions,omitempty"`
+	// timestamp as an [RFC3339] date string, indicating when the identified
+	// account was last updated.
+	//
+	// [RFC3339]: https://www.rfc-editor.org/rfc/rfc3339
+	UpdatedAt time.Time `json:"updated_at"` // RECOMMENDED
 }
 
-// EndUser identifies the end user to the AS in a manner that the AS can verify
-// (by value or by reference), either directly or by interacting with the
-// end user to determine their status as the RO.
-type EndUser struct {
-	SubIDs     []subject.ID `json:"sub_ids,omitempty"`
-	Assertions []Assertion  `json:"assertions,omitempty"`
-	Ref        string       `json:"-"`
-}
-
-// MarshalJSON implements the [json.Marshaler] interface.
-func (u EndUser) MarshalJSON() ([]byte, error) {
-	if u.Ref != "" {
-		return json.Marshal(u.Ref)
-	}
-	type Alias EndUser
-	return json.Marshal(Alias(u))
-}
-
-// UnmarshalJSON implements [json.Unmarshaler] interface.
-func (u *EndUser) UnmarshalJSON(data []byte) error {
-	var ref string
-	err := json.Unmarshal(data, &ref)
-	if err == nil { // valid string
-		u.Ref = ref
-		return nil
-	}
-	type Alias EndUser
-	var alias Alias
-	err = json.Unmarshal(data, &alias)
-	if err != nil {
-		return err
-	}
-	*u = EndUser(alias)
-	return nil
-}
-
-// Assertion represents identity assertions used to convey subject information.
+// Assertion defines a JSON object for representing an identity assertion
+// with respect to a subject.
 type Assertion struct {
-	Value  string          `json:"value"`
-	Format AssertionFormat `json:"format"`
+	// assertion format (such as OPEN ID Connect ID Token or SAML2).
+	Format AFormat `json:"format"` // REQUIRED
+	// assertion value as the JSON string serialization of the assertion.
+	Value string `json:"value"` // REQUIRED
 }

@@ -1,121 +1,39 @@
 package models
 
-import (
-	"encoding/json"
-	"errors"
-)
-
-// ErrInvalidAccessRight is returned when an access right object
-// is found to be malformed.
-var ErrInvalidAccessRight = errors.New("invalid access right")
-
-// ErrInvalidTokenRequest is returned when a token request is
-// found to be malformed.
-var ErrInvalidTokenRequest = errors.New("invalid token request")
-
-// ErrInvalidTokenResponse is returned when a token response
-// is found to be malformed.
-var ErrInvalidTokenResponse = errors.New("invalid token response")
-
-// AccessRight represents the rights and privileges requested
-// or granted during a gnap request flow.
-type AccessRight struct {
-	Type       string   `json:"type"`
-	Actions    []string `json:"actions,omitempty"`
-	Locations  []string `json:"locations,omitempty"`
-	Datatypes  []string `json:"datatypes,omitempty"`
-	Identifier string   `json:"identifier,omitempty"`
-	Privileges []string `json:"privileges,omitempty"`
-	Ref        string   `json:"-"`
+// ATReq represents the "access_token" field of the [Request], which MUST be included
+// if the client instance is requesting one or more access tokens for the purpose
+// of accessing a protected resource (such as API).
+type ATReq struct {
+	Single TokenReq   `json:"-"`
+	Multi  []TokenReq `json:"-"`
 }
 
-// MarshalJSON implements the [json.Marshaler] interface.
-func (r AccessRight) MarshalJSON() ([]byte, error) {
-	if r.Ref != "" {
-		return json.Marshal(r.Ref)
-	}
-	type Alias AccessRight
-	return json.Marshal(Alias(r))
-}
-
-// UnmarshalJSON implements the [json.Unmarshaler] interface.
-func (r *AccessRight) UnmarshalJSON(data []byte) error {
-	var ref string
-	err := json.Unmarshal(data, &ref)
-	if err == nil { // by reference
-		*r = AccessRight{Ref: ref}
-		return nil
-	}
-	type Alias AccessRight
-	var alias Alias
-	err = json.Unmarshal(data, &alias)
-	if err == nil {
-		*r = AccessRight(alias)
-		return nil
-	}
-	return ErrInvalidAccessRight
-}
-
-// ATRequest is a wrapper aroung TokenRequest for
-// managing single and multiple access token requests.
-type ATRequest struct {
-	Single   TokenRequest
-	Multiple []TokenRequest
-}
-
-// ATResponse is a wrapper around TokenResponse for
-// managing single and multiple access token responses.
+// ATResponse represents the "access_token" field of the [Response], which MUST be
+// included if the AS has successfully granted one or more access tokens to the
+// client instance.
 type ATResponse struct {
-	Single   TokenResponse
-	Multiple []TokenResponse
+	Single TokenResponse   `json:"-"`
+	Multi  []TokenResponse `json:"-"`
 }
 
-// MarshalJSON implements the [json.Marshaler] interface.
-func (req ATRequest) MarshalJSON() ([]byte, error) {
-	if req.Multiple == nil {
-		return json.Marshal(req.Single)
-	}
-	return json.Marshal(req.Multiple)
-}
-
-// MarshalJSON implements the [json.Marshaler] interface.
-func (req ATResponse) MarshalJSON() ([]byte, error) {
-	if req.Multiple == nil {
-		return json.Marshal(req.Single)
-	}
-	return json.Marshal(req.Multiple)
-}
-
-// UnmarshalJSON implements [json.UnmarshalJSON] interface.
-func (req *ATRequest) UnmarshalJSON(data []byte) error {
-	var one TokenRequest
-	err := json.Unmarshal(data, &one)
-	if err == nil { // valid single access token request
-		req.Single = one
-		return nil
-	}
-	var many []TokenRequest
-	err = json.Unmarshal(data, &many)
-	if err == nil { // valid multiple access token request
-		req.Multiple = many
-		return nil
-	}
-	return ErrInvalidTokenRequest
-}
-
-// UnmarshalJSON implements [json.Unmarshaler] interface.
-func (req *ATResponse) UnmarshalJSON(data []byte) error {
-	var one TokenResponse
-	err := json.Unmarshal(data, &one)
-	if err == nil { // valid single access token response
-		req.Single = one
-		return nil
-	}
-	var many []TokenResponse
-	err = json.Unmarshal(data, &many)
-	if err == nil { // valid multiple access token response
-		req.Multiple = many
-		return nil
-	}
-	return ErrInvalidTokenResponse
+// ARight represent rights of access that are associated with the the access token.
+// Rights of access can be defined by the RS as either an object or a string.
+type ARight struct {
+	// type of resource request as a string. This field MAY define which
+	// other fields are allowed in the request object.
+	Type string `json:"type"` // REQUIRED
+	// types of actions the client instance will take at the RS
+	Actions []string `json:"actions,omitempty"` // OPTIONAL
+	// typically URIs identifying the location of the RS.
+	Locations []string `json:"locations,omitempty"` // OPTIONAL
+	// kinds of data available to the client instance at the RS's API
+	Datatypes []string `json:"datatypes,omitempty"` // OPTIONAL
+	// string identifier indicating a specific resource at the RS.
+	Identifier string `json:"identifier,omitempty"` // OPTIONAL
+	// types or levels of privilege being requested at the resource.
+	Privileges []string `json:"privileges,omitempty"` // OPTIONAL
+	// access rights MAY be communicated as a string known to the AS
+	// representing the access being requested. such refs indicate a
+	// specific access at a protected resource.
+	Ref string `json:"-"`
 }
