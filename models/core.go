@@ -25,6 +25,10 @@ type Request struct {
 	// updates when interaction is complete.
 	// REQUIRED if interaction is supported.
 	Interact IAReq `json:"interact,omitempty"`
+	// if the RS needs to derive a token from one presented to it, it can
+	// request one from the AS by making a token request and presenting the
+	// existing access token's value in the "existing_access_token" field.
+	ExistingToken string `json:"existing_access_token,omitempty"` // OPTIONAL
 }
 
 // Response represents the JSON object that the AS sends to the client
