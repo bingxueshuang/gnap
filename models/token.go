@@ -1,5 +1,14 @@
 package models
 
+import (
+	"encoding/json"
+	"errors"
+)
+
+// ErrInvalidTokenFlag is returned when a flag not defined in
+// the registry is encountered.
+var ErrInvalidTokenFlag = errors.New("invalid token flag")
+
 // TokenFlag is a typed enum for access token flags.
 // Flags define attributes or behavior associated with the access token.
 type TokenFlag struct {
@@ -11,6 +20,12 @@ var (
 	TFBearer  = TokenFlag{"bearer"}  // Bearer Access Token (default: bound access token)
 	TFDurable = TokenFlag{"durable"} // Access Token durable even after rotation
 )
+
+// tokenFlagRegistry is a quick mapping from strings to valid token flags.
+var tokenFlagRegistry = map[string]TokenFlag{
+	"bearer":  TFBearer,
+	"durable": TFDurable,
+}
 
 // TokenReq is an object used for describing the requested access rights
 // and attributes associated with the access token.
@@ -77,4 +92,24 @@ type ContToken struct {
 	// set of flags that represent attributes or behaviors of the
 	// continuation token. MUST NOT contain the flag "bearer".
 	Flags []TokenFlag `json:"flags,omitempty"` // OPTIONAL
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (tf TokenFlag) MarshalJSON() ([]byte, error) {
+	return json.Marshal(tf.name)
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (tf *TokenFlag) UnmarshalJSON(data []byte) error {
+	var flag string
+	err := json.Unmarshal(data, &flag)
+	if err != nil {
+		return err
+	}
+	f, ok := tokenFlagRegistry[flag]
+	if ok {
+		*tf = f
+		return nil
+	}
+	return ErrInvalidTokenFlag
 }

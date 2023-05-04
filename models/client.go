@@ -1,6 +1,8 @@
 package models
 
 import (
+	"encoding/json"
+
 	"github.com/bingxueshuang/gnap/subject"
 )
 
@@ -63,4 +65,58 @@ type User struct {
 	// as a string. The format of this string is opaque to the client instance.
 	// REQUIRED if user is identified by reference.
 	Ref string `json:"-"`
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (client Client) MarshalJSON() ([]byte, error) {
+	if client.Ref != "" {
+		return json.Marshal(client.Ref)
+	}
+	type Alias Client
+	return json.Marshal(Alias(client))
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (client *Client) UnmarshalJSON(data []byte) (err error) {
+	var ref string
+	err = json.Unmarshal(data, &ref)
+	if err == nil {
+		client.Ref = ref
+		return
+	}
+	type Alias Client
+	var alias Alias
+	err = json.Unmarshal(data, &alias)
+	if err == nil {
+		*client = Client(alias)
+		return
+	}
+	return
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (user User) MarshalJSON() ([]byte, error) {
+	if user.Ref != "" {
+		return json.Marshal(user.Ref)
+	}
+	type Alias User
+	return json.Marshal(Alias(user))
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (user *User) UnmarshalJSON(data []byte) (err error) {
+	var ref string
+	err = json.Unmarshal(data, &ref)
+	if err == nil {
+		user.Ref = ref
+		return
+	}
+	type Alias User
+	var alias Alias
+	err = json.Unmarshal(data, &alias)
+	if err == nil {
+		*user = User(alias)
+		return
+	}
+	return
 }

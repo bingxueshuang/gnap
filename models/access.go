@@ -1,5 +1,7 @@
 package models
 
+import "encoding/json"
+
 // ATReq represents the "access_token" field of the [Request], which MUST be included
 // if the client instance is requesting one or more access tokens for the purpose
 // of accessing a protected resource (such as API).
@@ -36,4 +38,81 @@ type ARight struct {
 	// representing the access being requested. such refs indicate a
 	// specific access at a protected resource.
 	Ref string `json:"-"`
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (access ATReq) MarshalJSON() ([]byte, error) {
+	if access.Multi == nil {
+		return json.Marshal(access.Single)
+	}
+	return json.Marshal(access.Multi)
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (access *ATReq) UnmarshalJSON(data []byte) (err error) {
+	var one TokenReq
+	err = json.Unmarshal(data, &one)
+	if err == nil {
+		access.Single = one
+		return
+	}
+	var many []TokenReq
+	err = json.Unmarshal(data, &many)
+	if err == nil {
+		access.Multi = many
+		return nil
+	}
+	return
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (access ATResponse) MarshalJSON() ([]byte, error) {
+	if access.Multi == nil {
+		return json.Marshal(access.Single)
+	}
+	return json.Marshal(access.Multi)
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (access *ATResponse) UnmarshalJSON(data []byte) (err error) {
+	var one TokenResponse
+	err = json.Unmarshal(data, &one)
+	if err == nil {
+		access.Single = one
+		return
+	}
+	var many []TokenResponse
+	err = json.Unmarshal(data, &many)
+	if err == nil {
+		access.Multi = many
+		return
+	}
+	return
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (right ARight) MarshalJSON() ([]byte, error) {
+	if right.Ref != "" {
+		return json.Marshal(right.Ref)
+	}
+	type Alias ARight
+	return json.Marshal(Alias(right))
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (right *ARight) UnmarshalJSON(data []byte) (err error) {
+	var ref string
+	err = json.Unmarshal(data, &ref)
+	if err == nil {
+		right.Ref = ref
+		return
+	}
+	type Alias ARight
+	var alias Alias
+	err = json.Unmarshal(data, &alias)
+	if err == nil {
+		*right = ARight(alias)
+		return
+	}
+	return
 }

@@ -1,5 +1,18 @@
 package models
 
+import (
+	"encoding/json"
+	"errors"
+)
+
+// ErrInvalidFinishMethod is returned when a finish method not defined
+// in the registry is encountered.
+var ErrInvalidFinishMethod = errors.New("invalid finish method")
+
+// ErrInvalidStartMode is returned when a start mode not defined in the registry
+// is encountered.
+var ErrInvalidStartMode = errors.New("invalid start mode")
+
 // StartMode is enum that defines the means of how the client
 // allows the RS to communicate with the AS. Each interaction
 // start modes has a unique identifying name.
@@ -15,6 +28,14 @@ var (
 	SMCodeURI  = StartMode{"user_code_uri"}
 )
 
+// startModeRegistry is a quick mapping from string to valid start modes.
+var startModeRegistry = map[string]StartMode{
+	"redirect":      SMRedirect,
+	"app":           SMApp,
+	"user_code":     SMCode,
+	"user_code_uri": SMCodeURI,
+}
+
 // FinishMethod is enum that defines the means of how the
 // client gets notified when the interaction is completed.
 type FinishMethod struct {
@@ -26,6 +47,12 @@ var (
 	FMRedirect = FinishMethod{"redirect"}
 	FMPush     = FinishMethod{"push"}
 )
+
+// finishMethodRegistry is a quick mapping from string to valid finish methods.
+var finishMethodRegistry = map[string]FinishMethod{
+	"redirect": FMRedirect,
+	"push":     FMPush,
+}
 
 // IAReq defines the object format for "interact" field of [Request].
 // client instance declares the parameters for interaction methods that it
@@ -136,4 +163,71 @@ type CodeURI struct {
 	// an end user to type in manually. The URI MUST NOT contain the code value.
 	// This URI MUST be an absolute URI.
 	URI URL `json:"uri"` // REQUIRED
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (sm StartMode) MarshalJSON() ([]byte, error) {
+	return json.Marshal(sm.name)
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (sm *StartMode) UnmarshalJSON(data []byte) error {
+	var mode string
+	err := json.Unmarshal(data, &mode)
+	if err != nil {
+		return err
+	}
+	m, ok := startModeRegistry[mode]
+	if ok {
+		*sm = m
+		return nil
+	}
+	return ErrInvalidStartMode
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (fm FinishMethod) MarshalJSON() ([]byte, error) {
+	return json.Marshal(fm.name)
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (fm *FinishMethod) UnmarshalJSON(data []byte) error {
+	var method string
+	err := json.Unmarshal(data, &method)
+	if err != nil {
+		return err
+	}
+	m, ok := finishMethodRegistry[method]
+	if ok {
+		*fm = m
+		return nil
+	}
+	return ErrInvalidFinishMethod
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (start IAStart) MarshalJSON() ([]byte, error) {
+	if start.IsRef {
+		return json.Marshal(start.Mode)
+	}
+	type Alias IAStart
+	return json.Marshal(Alias(start))
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (start *IAStart) UnmarshalJSON(data []byte) (err error) {
+	var ref StartMode
+	err = json.Unmarshal(data, &ref)
+	if err == nil {
+		start.Mode = ref
+		return
+	}
+	type Alias IAStart
+	var alias Alias
+	err = json.Unmarshal(data, &alias)
+	if err == nil {
+		*start = IAStart(alias)
+		return
+	}
+	return
 }

@@ -1,6 +1,13 @@
 package models
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+)
+
+// ErrInvalidProofMethod is returned when the proof method is
+// not defined in the registry.
+var ErrInvalidProofMethod = errors.New("invalid proof method")
 
 // ProofMethod is a type-safe enum for GNAP key proofing methods.
 type ProofMethod struct {
@@ -14,6 +21,13 @@ var (
 	PMjwsd    = ProofMethod{"jwsd"}
 	PMjws     = ProofMethod{"jws"}
 )
+
+var proofMethodRegistry = map[string]ProofMethod{
+	"httpsig": PMhttpSig,
+	"mtls":    PMmtls,
+	"jwsd":    PMjwsd,
+	"jws":     PMjws,
+}
 
 // Key represents object format for GNAP key material.
 type Key struct {
@@ -56,4 +70,79 @@ type KeyProof struct {
 	// determines if the proofing mechanism is declared as object (by value)
 	// or as reference (by ref).
 	IsRef bool `json:"-"`
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (pm ProofMethod) MarshalJSON() ([]byte, error) {
+	return json.Marshal(pm.name)
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (pm *ProofMethod) UnmarshalJSON(data []byte) error {
+	var method string
+	err := json.Unmarshal(data, &method)
+	if err != nil {
+		return err
+	}
+	m, ok := proofMethodRegistry[method]
+	if ok {
+		*pm = m
+		return nil
+	}
+	return ErrInvalidProofMethod
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (key Key) MarshalJSON() ([]byte, error) {
+	if key.Ref != "" {
+		return json.Marshal(key.Ref)
+	}
+	type Alias Key
+	return json.Marshal(Alias(key))
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (key *Key) UnmarshalJSON(data []byte) (err error) {
+	var ref string
+	err = json.Unmarshal(data, &ref)
+	if err == nil {
+		key.Ref = ref
+		return
+	}
+	type Alias Key
+	var alias Alias
+	err = json.Unmarshal(data, &alias)
+	if err == nil {
+		*key = Key(alias)
+		return
+	}
+	return
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (proof KeyProof) MarshalJSON() ([]byte, error) {
+	if proof.IsRef {
+		return json.Marshal(proof.Method)
+	}
+	type Alias KeyProof
+	return json.Marshal(Alias(proof))
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (proof *KeyProof) UnmarshalJSON(data []byte) (err error) {
+	var ref ProofMethod
+	err = json.Unmarshal(data, &ref)
+	if err == nil {
+		proof.Method = ref
+		proof.IsRef = true
+		return
+	}
+	type Alias KeyProof
+	var alias Alias
+	err = json.Unmarshal(data, &alias)
+	if err == nil {
+		*proof = KeyProof(alias)
+		return
+	}
+	return
 }

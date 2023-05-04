@@ -1,5 +1,14 @@
 package models
 
+import (
+	"encoding/json"
+	"errors"
+)
+
+// ErrInvalidErrorCode is returned when a code not defined in the
+// error codes registry is encountered.
+var ErrInvalidErrorCode = errors.New("invalid error code")
+
 // ErrorCode defines a type-safe enum for GNAP error codes.
 type ErrorCode struct {
 	name string `json:"-"`
@@ -21,6 +30,23 @@ var (
 	ECTooFast             = ErrorCode{"too_fast"}
 	ECTooManyAttempts     = ErrorCode{"too_many_attempts"}
 )
+
+// errorCodeRegistry is a quick mapping from string to valid error codes.
+var errorCodeRegistry = map[string]ErrorCode{
+	"invalid_request":            ECInvalidRequest,
+	"invalid_client":             ECInvalidClient,
+	"invalid_interaction":        ECInvalidInteraction,
+	"invalid_flag":               ECInvalidFlag,
+	"invalid_rotation":           ECInvalidRotation,
+	"key_rotation_not_supported": ECkrNotSupported,
+	"invalid_continuation":       ECInvalidContinuation,
+	"user_denied":                ECUserDenied,
+	"request_denied":             ECRequestDenied,
+	"unknown_user":               ECUnknownUser,
+	"unknown_interaction":        ECUnknownInteraction,
+	"too_fast":                   ECTooFast,
+	"too_many_attempts":          ECTooManyAttempts,
+}
 
 // ErrorDescription maps error codes to default description as given in the draft.
 var ErrorDescription = map[ErrorCode]string{
@@ -50,4 +76,52 @@ type Error struct {
 	// a boolean field indicating whether the error code is represented
 	// by reference as an JSON string.
 	IsRef bool `json:"-"`
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (ec ErrorCode) MarshalJSON() ([]byte, error) {
+	return json.Marshal(ec.name)
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (ec *ErrorCode) UnmarshalJSON(data []byte) error {
+	var code string
+	err := json.Unmarshal(data, &code)
+	if err != nil {
+		return err
+	}
+	ecode, ok := errorCodeRegistry[code]
+	if ok {
+		*ec = ecode
+		return nil
+	}
+	return ErrInvalidErrorCode
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (e Error) MarshalJSON() ([]byte, error) {
+	if e.IsRef {
+		return json.Marshal(e.Code)
+	}
+	type Alias Error
+	return json.Marshal(Alias(e))
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (e *Error) UnmarshalJSON(data []byte) (err error) {
+	var ref ErrorCode
+	err = json.Unmarshal(data, &ref)
+	if err == nil {
+		e.Code = ref
+		e.IsRef = true
+		return
+	}
+	type Alias Error
+	var alias Alias
+	err = json.Unmarshal(data, &alias)
+	if err == nil {
+		*e = Error(alias)
+		return
+	}
+	return
 }

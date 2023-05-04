@@ -1,5 +1,14 @@
 package models
 
+import (
+	"encoding/json"
+	"errors"
+)
+
+// ErrInvalidTokenFormat is returned when a token format not
+// defined in the registry is encountered.
+var ErrInvalidTokenFormat = errors.New("invalid token format")
+
 // TokenFormat represents a type-safe enum for defined token format types.
 type TokenFormat struct {
 	name string `json:"-"`
@@ -13,6 +22,16 @@ var (
 	TFBiscuit      = TokenFormat{"biscuit"}
 	TFzcap         = TokenFormat{"zcap"}
 )
+
+// tokenFormatRegistry is a quick mapping from strings
+// to valid token formats.
+var tokenFormatRegistry = map[string]TokenFormat{
+	"jwt-signed":    TFjwtSigned,
+	"jwt-encrypted": TFjwtEncrypted,
+	"macaroon":      TFMacaroon,
+	"biscuit":       TFBiscuit,
+	"zcap":          TFzcap,
+}
 
 type RSDiscovery struct {
 	// URL of the endpoint offering introspection. The location MUST be a URL [RFC3986]
@@ -145,4 +164,76 @@ type RegResponse struct {
 type Audience struct {
 	Single string   `json:"-"`
 	Many   []string `json:"-"`
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (tf TokenFormat) MarshalJSON() ([]byte, error) {
+	return json.Marshal(tf.name)
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (tf *TokenFormat) UnmarshalJSON(data []byte) error {
+	var format string
+	err := json.Unmarshal(data, &format)
+	if err != nil {
+		return err
+	}
+	f, ok := tokenFormatRegistry[format]
+	if ok {
+		*tf = f
+		return nil
+	}
+	return ErrInvalidTokenFormat
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (rs ResourceServer) MarshalJSON() ([]byte, error) {
+	if rs.Ref != "" {
+		return json.Marshal(rs.Ref)
+	}
+	type Alias ResourceServer
+	return json.Marshal(Alias(rs))
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (rs *ResourceServer) UnmarshalJSON(data []byte) (err error) {
+	var ref string
+	err = json.Unmarshal(data, &ref)
+	if err == nil {
+		rs.Ref = ref
+		return
+	}
+	type Alias ResourceServer
+	var alias Alias
+	err = json.Unmarshal(data, &alias)
+	if err == nil {
+		*rs = ResourceServer(alias)
+		return
+	}
+	return
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (aud Audience) MarshalJSON() ([]byte, error) {
+	if aud.Many == nil {
+		return json.Marshal(aud.Single)
+	}
+	return json.Marshal(aud.Many)
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (aud *Audience) UnmarshalJSON(data []byte) (err error) {
+	var one string
+	err = json.Unmarshal(data, &one)
+	if err == nil {
+		aud.Single = one
+		return
+	}
+	var many []string
+	err = json.Unmarshal(data, &many)
+	if err == nil {
+		aud.Many = many
+		return
+	}
+	return
 }

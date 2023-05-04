@@ -1,10 +1,16 @@
 package models
 
 import (
+	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/bingxueshuang/gnap/subject"
 )
+
+// ErrInvalidAFormat is returned when an assertion format
+// not defined in the registry is encountered.
+var ErrInvalidAFormat = errors.New("invalid assertion format")
 
 // AFormat is type-safe enum for gnap assertion formats.
 // It defines a means to pass identity assertions between the
@@ -18,6 +24,12 @@ var (
 	AFidToken = AFormat{"id_token"}
 	AFsaml2   = AFormat{"saml2"}
 )
+
+// aFormatRegistry is a quick mapping from strings to valid AFormat values.
+var aFormatRegistry = map[string]AFormat{
+	"id_token": AFidToken,
+	"saml2":    AFsaml2,
+}
 
 // SubReq defines the subject field of [Request] as a JSON object if the
 // client instance is requesting information about the RO from AS.
@@ -60,4 +72,24 @@ type Assertion struct {
 	Format AFormat `json:"format"` // REQUIRED
 	// assertion value as the JSON string serialization of the assertion.
 	Value string `json:"value"` // REQUIRED
+}
+
+// MarshalJSON implements the [json.Marshaler] interface.
+func (af AFormat) MarshalJSON() ([]byte, error) {
+	return json.Marshal(af.name)
+}
+
+// UnmarshalJSON implements the [json.Unmarshaler] interface.
+func (af *AFormat) UnmarshalJSON(data []byte) error {
+	var format string
+	err := json.Unmarshal(data, &format)
+	if err != nil {
+		return err
+	}
+	f, ok := aFormatRegistry[format]
+	if ok {
+		*af = f
+		return nil
+	}
+	return ErrInvalidAFormat
 }
